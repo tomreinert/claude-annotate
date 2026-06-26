@@ -1,0 +1,13 @@
+{
+  "name": "tom-tools",
+  "owner": { "name": "Tom Reinert" },
+  "description": "Tom's local Claude Code tools.",
+  "plugins": [
+    {
+      "name": "annotate",
+      "displayName": "Live UI Annotate",
+      "description": "Draw on a live frontend in the Playwright browser and feed the annotated screenshot back into the session. Local, no cloud.",
+      "source": "./annotate-plugin"
+    }
+  ]
+}

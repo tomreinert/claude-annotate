@@ -1,0 +1,60 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]: 🦭
+        - heading "Rent-a-Walrus" [level=1] [ref=e7]
+      - generic [ref=e8]:
+        - button "Sign in" [ref=e9]
+        - button "Book now" [ref=e10]
+        - button "Rent a walrus" [ref=e11]
+    - generic [ref=e12]:
+      - paragraph [ref=e13]: From $49 / day
+      - heading "Rent a real walrus. For any occasion." [level=2] [ref=e14]
+      - paragraph [ref=e15]: Birthday, company party, or just because. Our fluffy giants arrive with their own bucket of fish and guaranteed good vibes.
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - paragraph [ref=e18]: Walruses
+        - paragraph [ref=e19]: "37"
+      - generic [ref=e20]:
+        - paragraph [ref=e21]: Bookings
+        - paragraph [ref=e22]: 1.2k
+      - generic [ref=e23]:
+        - paragraph [ref=e24]: Fish / day
+        - paragraph [ref=e25]: 88kg
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - heading "Available walruses" [level=2] [ref=e28]
+        - button "Filter" [ref=e29]
+      - list [ref=e30]:
+        - listitem [ref=e31]:
+          - generic [ref=e32]:
+            - generic [ref=e33]: 🦭
+            - generic [ref=e34]:
+              - generic [ref=e35]: Gerald
+              - text: Gentle soul
+          - generic [ref=e36]: Available
+        - listitem [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]: 🦭
+            - generic [ref=e40]:
+              - generic [ref=e41]: Brunhilde
+              - text: High energy
+          - generic [ref=e42]: Available
+        - listitem [ref=e43]:
+          - generic [ref=e44]:
+            - generic [ref=e45]: 🎩
+            - generic [ref=e46]:
+              - generic [ref=e47]: Sir Flooof
+              - text: Distinguished
+          - generic [ref=e48]: Booked out
+        - listitem [ref=e49]:
+          - generic [ref=e50]:
+            - generic [ref=e51]: 🌀
+            - generic [ref=e52]:
+              - generic [ref=e53]: Kevin
+              - text: Chaotic
+          - generic [ref=e54]: Available
+  - button "Open Next.js Dev Tools" [ref=e60] [cursor=pointer]:
+    - img [ref=e61]
+  - alert [ref=e64]
