@@ -7,7 +7,7 @@ description: Run one live-UI annotation round — let the user draw on the page 
 
 Let the user draw directly on the live page in the Playwright MCP browser, then
 capture the annotated viewport and read it back. The user draws and clicks the
-green **✓ fertig** button; they never type "done". Everything is local.
+green **✓ done** button; they never type "done". Everything is local.
 
 ## Procedure
 
@@ -49,14 +49,14 @@ green **✓ fertig** button; they never type "done". Everything is local.
 ## The overlay toolbar
 
 Arrow ↗, Box ▭, Freehand ✎, Text T, color swatches, Undo ⤺, Clear, and the three
-review buttons: **▶ weiter** (skip), **■ Review aus** (stop), **✓ fertig** (done,
-green). `window.__annot` exposes `arm()`, `finish(outcome)`, `outcome`, `count()`,
-and `waitDone(capMs)`.
+review buttons: **▶ skip** (skip), **■ stop** (stop), **✓ done** (done, green).
+`window.__annot` exposes `arm()`, `finish(outcome)`, `outcome`, `count()`, and
+`waitDone(capMs)`.
 
 ## Turning review mode on/off — the user never types a command
 
-- **On:** when the user asks to review/annotate the UI (e.g. "lass uns das
-  reviewen", "I want to annotate this"), write `on` to
+- **On:** when the user asks to review/annotate the UI (e.g. "let's review this",
+  "I want to annotate this"), write `on` to
   `$CLAUDE_PROJECT_DIR/.claude/annotate.mode` (`mkdir -p` the dir first), then run
   a round on the current page.
 - **From then on it is browser-driven:** you mirror the user's button choice into

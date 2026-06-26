@@ -21,16 +21,16 @@ localhost dev server for the UI you want to annotate.
 
 In any project, just say it in natural language:
 
-- "lass uns die UI reviewen" / "I want to annotate this" → review mode on, Claude
+- "let's review the UI" / "I want to annotate this" → review mode on, Claude
   opens the page and shows the drawing toolbar.
 - Draw your feedback, then click a review button in the overlay:
-  **✓ fertig** (process my notes), **▶ weiter** (no notes, keep going),
-  **■ Review aus** (leave review mode).
+  **✓ done** (process my notes), **▶ skip** (no notes, keep going),
+  **■ stop** (leave review mode).
 - Claude captures the annotated viewport, sees it, and incorporates your notes,
   then presents the next round automatically.
 
 You never type a command or "done" — everything is controlled from the overlay.
-To bring the panel back after **■ Review aus**, just ask again ("review an").
+To bring the panel back after **■ stop**, just ask again ("review on").
 
 ## What's in here
 

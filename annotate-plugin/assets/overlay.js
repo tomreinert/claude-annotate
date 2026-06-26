@@ -3,9 +3,9 @@
 // Lifecycle for the hands-free loop:
 //   1. inject this script         -> toolbar shown, fresh round armed
 //   2. user draws, then clicks one of the three review buttons:
-//        ✓ fertig    -> outcome "done"  (has annotations to process)
-//        ▶ weiter     -> outcome "skip"  (no notes, keep reviewing next change)
-//        ■ Review aus -> outcome "stop"  (leave review mode)
+//        ✓ done  -> outcome "done"  (has annotations to process)
+//        ▶ skip  -> outcome "skip"  (no notes, keep reviewing next change)
+//        ■ stop  -> outcome "stop"  (leave review mode)
 //   3. caller awaits __annot.waitDone() in a single blocking browser_evaluate;
 //      it returns that outcome string. The caller mirrors "stop" into the
 //      project mode file; "done"/"skip" keep the mode on.
@@ -35,7 +35,7 @@
   Object.assign(bar.style, { position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: "2147483647", display: "flex", gap: "6px", padding: "6px 8px", background: "rgba(28,28,30,.95)", borderRadius: "12px", alignItems: "center", font: "13px -apple-system,system-ui,sans-serif", color: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,.4)", userSelect: "none" });
   bar.setAttribute("data-annot-ui", "1");
   const mkBtn = (label, title) => { const b = document.createElement("button"); b.textContent = label; b.title = title; Object.assign(b.style, { background: "transparent", border: "1px solid transparent", color: "#fff", borderRadius: "8px", padding: "4px 8px", cursor: "pointer", fontSize: "15px", whiteSpace: "nowrap" }); return b; };
-  const tools = [["arrow", "↗", "Pfeil"], ["box", "▭", "Box"], ["pen", "✎", "Freihand"], ["text", "T", "Text"]];
+  const tools = [["arrow", "↗", "Arrow"], ["box", "▭", "Box"], ["pen", "✎", "Freehand"], ["text", "T", "Text"]];
   const toolBtns = {};
   tools.forEach(([t, icon, title]) => { const b = mkBtn(icon, title); b.onclick = () => setTool(t); toolBtns[t] = b; bar.appendChild(b); });
   const sep = () => { const s = document.createElement("div"); Object.assign(s.style, { width: "1px", height: "20px", background: "rgba(255,255,255,.2)" }); return s; };
@@ -43,12 +43,12 @@
   COLORS.forEach(c => { const sw = document.createElement("button"); Object.assign(sw.style, { width: "18px", height: "18px", borderRadius: "50%", background: c, border: "2px solid transparent", cursor: "pointer", padding: "0" }); sw.onclick = () => { state.color = c; renderColors(); }; sw.dataset.color = c; bar.appendChild(sw); });
   bar.appendChild(sep());
   const undoBtn = mkBtn("⤺", "Undo"); undoBtn.onclick = undo; bar.appendChild(undoBtn);
-  const clearBtn = mkBtn("Clear", "Alles löschen"); clearBtn.onclick = clearAll; bar.appendChild(clearBtn);
+  const clearBtn = mkBtn("Clear", "Clear all"); clearBtn.onclick = clearAll; bar.appendChild(clearBtn);
   bar.appendChild(sep());
   // Review controls — the only signal the caller waits on.
-  const weiterBtn = mkBtn("▶ weiter", "Keine Notiz — nächste Änderung weiter reviewen"); weiterBtn.onclick = () => finish("skip"); bar.appendChild(weiterBtn);
-  const stopBtn = mkBtn("■ Review aus", "Review-Modus beenden"); stopBtn.onclick = () => finish("stop"); bar.appendChild(stopBtn);
-  const doneBtn = mkBtn("✓ fertig", "Notizen an Claude übergeben"); doneBtn.style.background = "#34c759"; doneBtn.style.fontWeight = "600"; doneBtn.onclick = () => finish("done"); bar.appendChild(doneBtn);
+  const skipBtn = mkBtn("▶ skip", "No note — keep reviewing the next change"); skipBtn.onclick = () => finish("skip"); bar.appendChild(skipBtn);
+  const stopBtn = mkBtn("■ stop", "Leave review mode"); stopBtn.onclick = () => finish("stop"); bar.appendChild(stopBtn);
+  const doneBtn = mkBtn("✓ done", "Send notes to Claude"); doneBtn.style.background = "#34c759"; doneBtn.style.fontWeight = "600"; doneBtn.onclick = () => finish("done"); bar.appendChild(doneBtn);
 
   function renderColors() { bar.querySelectorAll("[data-color]").forEach(s => s.style.borderColor = s.dataset.color === state.color ? "#fff" : "transparent"); }
   function setTool(t) { state.tool = t; Object.entries(toolBtns).forEach(([k, b]) => b.style.borderColor = k === t ? "#fff" : "transparent"); }
