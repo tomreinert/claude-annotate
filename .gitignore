@@ -1,1 +1,11 @@
-./test-app
+# local dev / test fixtures — not part of the distributable plugin
+test-app/
+.playwright-mcp/
+.annotations/
+scratchpad/
+*.png
+*.log
+
+# per-project annotation state (written at runtime)
+.claude/annotate.mode
+.claude/annotate.dirty
