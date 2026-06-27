@@ -1,14 +1,15 @@
 // Self-contained annotation overlay, injected via Playwright browser_evaluate.
 //
-// Lifecycle for the hands-free loop:
-//   1. inject this script         -> toolbar shown, fresh round armed
-//   2. user draws, then clicks one of the three review buttons:
-//        ✓ done  -> outcome "done"  (has annotations to process)
-//        ▶ skip  -> outcome "skip"  (no notes, keep reviewing next change)
-//        ■ stop  -> outcome "stop"  (leave review mode)
-//   3. caller awaits __annot.waitDone() in a single blocking browser_evaluate;
-//      it returns that outcome string. The caller mirrors "stop" into the
-//      project mode file; "done"/"skip" keep the mode on.
+// The toolbar is a PERSISTENT surface — it stays up across many send/work cycles,
+// it is not a one-shot "round". Lifecycle:
+//   1. inject this script        -> toolbar shown at the bottom, ready to draw
+//   2. user draws, then clicks:
+//        ✓ Send   -> outcome "send"   (hand current drawings to Claude; toolbar stays)
+//        ✕ Close  -> outcome "close"  (remove the toolbar; reopen by saying "annotate")
+//   3. caller awaits __annot.waitNext() in a single blocking browser_evaluate; it
+//      returns the outcome. On "send" the caller captures, then calls arm() to clear
+//      the canvas for the next drawing while the toolbar stays. On "close" the
+//      caller writes `off` to the project mode file.
 //
 // Drawings live in a fixed full-screen SVG layer above the page so a normal
 // viewport screenshot captures them. This file is a single bare arrow function:
@@ -30,9 +31,9 @@
   svg.appendChild(defs);
   const ahId = () => `ah${COLORS.indexOf(state.color)}`;
 
-  // --- toolbar --------------------------------------------------------------
+  // --- toolbar (persistent, bottom-center) ----------------------------------
   const bar = document.createElement("div");
-  Object.assign(bar.style, { position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)", zIndex: "2147483647", display: "flex", gap: "6px", padding: "6px 8px", background: "rgba(28,28,30,.95)", borderRadius: "12px", alignItems: "center", font: "13px -apple-system,system-ui,sans-serif", color: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,.4)", userSelect: "none" });
+  Object.assign(bar.style, { position: "fixed", bottom: "20px", left: "50%", transform: "translateX(-50%)", zIndex: "2147483647", display: "flex", gap: "6px", padding: "6px 8px", background: "rgba(28,28,30,.95)", borderRadius: "12px", alignItems: "center", font: "13px -apple-system,system-ui,sans-serif", color: "#fff", boxShadow: "0 4px 24px rgba(0,0,0,.4)", userSelect: "none" });
   bar.setAttribute("data-annot-ui", "1");
   const mkBtn = (label, title) => { const b = document.createElement("button"); b.textContent = label; b.title = title; Object.assign(b.style, { background: "transparent", border: "1px solid transparent", color: "#fff", borderRadius: "8px", padding: "4px 8px", cursor: "pointer", fontSize: "15px", whiteSpace: "nowrap" }); return b; };
   const tools = [["arrow", "↗", "Arrow"], ["box", "▭", "Box"], ["pen", "✎", "Freehand"], ["text", "T", "Text"]];
@@ -45,10 +46,8 @@
   const undoBtn = mkBtn("⤺", "Undo"); undoBtn.onclick = undo; bar.appendChild(undoBtn);
   const clearBtn = mkBtn("Clear", "Clear all"); clearBtn.onclick = clearAll; bar.appendChild(clearBtn);
   bar.appendChild(sep());
-  // Review controls — the only signal the caller waits on.
-  const skipBtn = mkBtn("▶ skip", "No note — keep reviewing the next change"); skipBtn.onclick = () => finish("skip"); bar.appendChild(skipBtn);
-  const stopBtn = mkBtn("■ stop", "Leave review mode"); stopBtn.onclick = () => finish("stop"); bar.appendChild(stopBtn);
-  const doneBtn = mkBtn("✓ done", "Send notes to Claude"); doneBtn.style.background = "#34c759"; doneBtn.style.fontWeight = "600"; doneBtn.onclick = () => finish("done"); bar.appendChild(doneBtn);
+  const sendBtn = mkBtn("✓ Send", "Send annotations to Claude (toolbar stays)"); sendBtn.style.background = "#34c759"; sendBtn.style.fontWeight = "600"; sendBtn.onclick = () => finish("send"); bar.appendChild(sendBtn);
+  const closeBtn = mkBtn("✕ Close", "Close the toolbar — say 'annotate' to reopen"); closeBtn.onclick = closeOverlay; bar.appendChild(closeBtn);
 
   function renderColors() { bar.querySelectorAll("[data-color]").forEach(s => s.style.borderColor = s.dataset.color === state.color ? "#fff" : "transparent"); }
   function setTool(t) { state.tool = t; Object.entries(toolBtns).forEach(([k, b]) => b.style.borderColor = k === t ? "#fff" : "transparent"); }
@@ -81,22 +80,28 @@
   svg.addEventListener("mousedown", down); window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
   document.body.appendChild(svg); document.body.appendChild(bar);
 
-  // --- round lifecycle ------------------------------------------------------
+  // --- lifecycle ------------------------------------------------------------
+  // arm(): ready for a fresh drawing while keeping the toolbar up (clear canvas,
+  // show bar, reset the pending outcome). Used on inject and after each "send".
   function arm() { state.outcome = null; clearAll(); bar.style.display = "flex"; svg.style.pointerEvents = "auto"; setTool("arrow"); renderColors(); }
-  function finish(outcome) {
-    state.outcome = outcome || "done";
-    bar.style.display = "none"; svg.style.pointerEvents = "none"; // hide UI so it is not in the capture
-    if (state.resolve) { state.resolve(state.outcome); state.resolve = null; }
+  function setBar(visible) { bar.style.display = visible ? "flex" : "none"; }
+  // finish(): resolve the pending wait without tearing anything down (toolbar
+  // and drawings stay; the caller hides the bar only for the capture frame).
+  function finish(outcome) { state.outcome = outcome || "send"; if (state.resolve) { state.resolve(state.outcome); state.resolve = null; } }
+  function closeOverlay() {
+    window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up);
+    svg.remove(); bar.remove(); delete window.__annot;
+    if (state.resolve) { state.resolve("close"); state.resolve = null; } else { state.outcome = "close"; }
   }
 
   window.__annot = {
-    arm, finish,
+    arm, finish, setBar, clear: clearAll,
     get outcome() { return state.outcome; },
     count: () => state.items.length,
-    // Blocking wait. Resolves with the chosen outcome ("done"/"skip"/"stop").
-    // Self-caps so a possible MCP timeout never strands the loop — the caller
-    // just re-issues and the sticky outcome means no click is ever lost.
-    waitDone(capMs) {
+    // Blocking wait. Resolves with "send" or "close". Self-caps so a possible
+    // MCP timeout never strands the loop — the caller just re-issues and the
+    // sticky outcome means no click is ever lost.
+    waitNext(capMs) {
       return new Promise(res => {
         if (state.outcome) return res(state.outcome);
         state.resolve = res;
@@ -105,5 +110,5 @@
     }
   };
   arm();
-  return "annotation overlay ready, armed";
+  return "annotation overlay ready (persistent toolbar, bottom)";
 }

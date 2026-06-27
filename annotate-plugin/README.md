@@ -9,16 +9,17 @@ MCP browser, no cloud, no upload, no Chrome extension.
 1. You ask Claude to review/annotate the UI ("let's review this"). That turns
    on review mode for this project.
 2. Claude changes frontend code and opens the page in the Playwright browser.
-3. A drawing toolbar (arrow, box, freehand, text, colors) appears on the live page.
-4. You draw your feedback and click one of the review buttons:
-   **✓ done** (process my notes), **▶ skip** (no notes, keep going),
-   **■ stop** (leave review mode).
-5. Claude captures the annotated viewport, sees it, and incorporates your notes.
-6. The next round starts automatically after the next change.
+3. A persistent drawing toolbar (arrow, box, freehand, text, colors) sits at the
+   bottom of the live page.
+4. You draw your feedback and click **✓ Send**. The toolbar stays up.
+5. Claude captures the annotated viewport, sees it, and incorporates your notes,
+   then presents the updated page so you can draw again.
+6. Repeat as long as you like. Click **✕ Close** to put the toolbar away; say
+   "annotate" to bring it back.
 
 Everything is controlled from the overlay in the browser — you never type a
-command or "done". Claude mirrors your button choice into a per-project state file
-so a `Stop` hook can guarantee the loop, but you never touch that file.
+command or "done". Claude mirrors Close into a per-project state file so a `Stop`
+hook can guarantee the loop, but you never touch that file.
 
 ## Requirements
 
@@ -43,9 +44,9 @@ claude plugin install annotate@<marketplace-name> --scope user
 
 Just say it in natural language:
 
-- "let's review this" / "I want to annotate this" → review mode on, first round now
-- draw, then click **✓ done** / **▶ skip** / **■ stop** in the overlay
-- "■ stop" (or saying "stop reviewing") ends it
+- "let's review this" / "I want to annotate this" → review mode on, toolbar appears
+- draw, then click **✓ Send** to hand it over; the toolbar stays for the next pass
+- click **✕ Close** to put the toolbar away; say "annotate" to reopen it
 
 When on, just ask Claude to make a frontend change — it presents the page for
 annotation after the change, waits for your drawing, and continues.
@@ -54,9 +55,9 @@ annotation after the change, waits for your drawing, and continues.
 
 - `assets/overlay.js` — a self-contained drawing overlay (bare arrow function).
   Injected via `browser_evaluate`, which runs through CDP and bypasses page CSP,
-  so it works on any localhost app. Exposes `window.__annot.waitDone()`, a promise
-  that resolves on the done click — that single blocking call is how Claude waits
-  for you hands-free.
+  so it works on any localhost app. Exposes `window.__annot.waitNext()`, a promise
+  that resolves on Send/Close — that single blocking call is how Claude waits for
+  you hands-free.
 - `hooks/hooks.json` — `PostToolUse` flags frontend edits, `Stop` enforces a round
   while mode is on and edits keep happening, `SessionStart` reports the mode.
 - `skills/annotate/SKILL.md` — the round procedure.
