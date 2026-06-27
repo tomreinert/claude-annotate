@@ -10,6 +10,18 @@ A persistent annotation toolbar sits on the live page. The user draws and clicks
 to a small launcher pill (✏, bottom-right) and reopen it anytime — no message to
 you needed. The user never types "done". Everything is local.
 
+## Keep quiet about the mechanics
+
+Do NOT narrate the setup or capture steps — no "injecting the script",
+"registering the overlay", "hiding the toolbar", "taking a screenshot", "calling
+arm/waitNext", or Playwright chatter. The user only wants to know:
+- a one-line confirmation when you start,
+- a one-line "ready — draw your feedback and hit Send" once the toolbar is up,
+- then silence while they draw (you're blocked on `waitNext` anyway).
+
+After Send, respond to what they drew (or make the change); don't recap how you
+captured it.
+
 ## Overlay injection — register ONCE per session via addInitScript
 
 The overlay is registered once so the browser re-runs it on **every** page load

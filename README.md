@@ -2,7 +2,7 @@
 
 A Claude Code plugin to give visual feedback to claude via playwright.
 
-This is useful when you look at Claude's work in a browser and want to give feedback. Instead of describing the changes, draw and annotate on the site and send it to claude.
+Instead of describing the changes, draw and annotate on the site and send it back to to Claude.
 
 <!-- Screen recording of a claude session and browser side by side with someone calling annotate, then drawing and sending the feedback and claude correcting it -->
 
@@ -13,7 +13,7 @@ claude plugin marketplace add tomreinert/claude-annotate
 claude plugin install annotate@tom-tools --scope user
 ```
 
-Then restart Claude Code. You need the Playwright MCP connected.
+Then restart Claude Code. You need the [Playwright MCP](https://playwright.dev/docs/getting-started-mcp) installed.
 
 ## Use
 
