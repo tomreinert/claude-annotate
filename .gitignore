@@ -6,6 +6,7 @@ scratchpad/
 *.png
 *.log
 
-# per-project annotation state (written at runtime)
-.claude/annotate.mode
-.claude/annotate.dirty
+# channel server deps (installed on first launch)
+node_modules/
+annotate-plugin/node_modules/
+annotate-plugin/package-lock.json

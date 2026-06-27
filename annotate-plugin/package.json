@@ -1,0 +1,10 @@
+{
+  "name": "claude-channel-annotate",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Channel server for the Live UI Annotate plugin.",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

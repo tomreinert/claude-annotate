@@ -9,9 +9,12 @@
 // destroys itself: ✕ collapses it to a small launcher pill (bottom-right) that the
 // user clicks to reopen — no round-trip to Claude needed.
 //
-// Caller (Claude) flow: ensure the overlay is present, then await __annot.waitNext()
-// in a blocking browser_evaluate. It resolves "send" when the user clicks Send.
-// On send: setBar(false) -> screenshot -> arm(); read the PNG; incorporate.
+// Flow (channel-based): the user draws and clicks Send -> the overlay POSTs to the
+// local annotate *channel* server (http://localhost:8799/send), which pushes a
+// <channel source="annotate"> event into the Claude Code session. Claude then hides
+// the bar, screenshots, re-arms, reads the PNG, and incorporates the feedback —
+// and may call its reply tool, which streams back over /events as a toast here.
+// No blocking MCP call: Send lands whether or not Claude is mid-turn.
 //
 // Tools: pen (quadratic-smoothed), rectangle (Shift = square), arrow (Shift = snap
 // 45°), text (sticky note). Shortcuts: A/R/P/T pick a tool, Cmd/Ctrl+Z undo.
@@ -19,17 +22,27 @@
 // This file is a single bare arrow function: pass its contents verbatim as the
 // `content` of addInitScript and/or the `function` of browser_evaluate.
 (() => {
+  const ENDPOINT = "http://localhost:8799"; // must match the channel server's ANNOTATE_PORT
   const LS = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
   if (LS.get("__annot_off") === "1") return "disabled";
-  if (window.__annot) { window.__annot.arm(); return "re-armed"; }
+  // Re-injection: if the API is live AND its DOM is still attached, just re-arm.
+  // If the nodes were torn out (framework re-render/HMR) leave the stale API behind
+  // and fall through to a clean rebuild.
+  if (window.__annot) {
+    if (document.getElementById("__annot_svg")) { window.__annot.arm(); return "re-armed"; }
+    try { delete window.__annot; } catch (e) { window.__annot = undefined; }
+  }
 
   // Runs both via browser_evaluate (page already loaded) and via addInitScript
   // (runs before <body> exists) — so defer the DOM build until the body is ready.
   const build = () => {
+  // Idempotent: strip any prior overlay instance so we never stack two toolbars.
+  document.querySelectorAll("#__annot_svg,[data-annot-ui]").forEach(n => { try { n.remove(); } catch (e) {} });
+
   const NS = "http://www.w3.org/2000/svg";
   const COLORS = ["#ff2d55", "#0a84ff", "#34c759", "#ffd60a", "#111111"];
   const SIZES = { S: 2.5, M: 4, L: 7 };
-  const state = { tool: "arrow", color: COLORS[0], size: SIZES.M, drawing: false, start: null, node: null, pts: [], items: [], outcome: null, resolve: null, shift: false, editing: null };
+  const state = { tool: "arrow", color: COLORS[0], size: SIZES.M, drawing: false, start: null, node: null, pts: [], items: [], shift: false, editing: null };
 
   // --- drawing layer --------------------------------------------------------
   const svg = document.createElementNS(NS, "svg");
@@ -86,13 +99,20 @@
   bar.appendChild(sep());
 
   const sendBtn = document.createElement("button"); baseBtn(sendBtn); sendBtn.innerHTML = iconSvg("send") + '<span style="font-weight:600">Send</span>';
-  Object.assign(sendBtn.style, { background: "#34c759", color: "#03210d", padding: "0 11px" }); sendBtn.onmouseenter = () => sendBtn.style.background = "#2fb850"; sendBtn.onmouseleave = () => sendBtn.style.background = "#34c759"; sendBtn.title = "Send annotations to Claude (toolbar stays)"; sendBtn.onclick = () => finish("send"); bar.appendChild(sendBtn);
+  Object.assign(sendBtn.style, { background: "#34c759", color: "#03210d", padding: "0 11px" }); sendBtn.onmouseenter = () => sendBtn.style.background = "#2fb850"; sendBtn.onmouseleave = () => sendBtn.style.background = "#34c759"; sendBtn.title = "Send annotations to Claude (toolbar stays)"; sendBtn.onclick = send; bar.appendChild(sendBtn);
   const minBtn = iconBtn("close", "Minimize (reopen from the ✏ pill)", minimize); bar.appendChild(minBtn);
 
   // --- launcher pill --------------------------------------------------------
   const launcher = document.createElement("button"); launcher.setAttribute("data-annot-ui", "1"); launcher.title = "Open annotation toolbar"; launcher.innerHTML = iconSvg("pen", 22);
   Object.assign(launcher.style, { position: "fixed", bottom: "20px", right: "20px", zIndex: "2147483647", width: "46px", height: "46px", borderRadius: "50%", display: "none", alignItems: "center", justifyContent: "center", background: "rgba(28,28,30,.9)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,.14)", color: "#fff", cursor: "pointer", boxShadow: "0 6px 24px rgba(0,0,0,.4)" });
   launcher.onclick = expand;
+
+  // --- toast (Claude -> user, via the channel reply tool) -------------------
+  const toast = document.createElement("div"); toast.setAttribute("data-annot-ui", "1");
+  Object.assign(toast.style, { position: "fixed", bottom: "78px", left: "50%", transform: "translateX(-50%) translateY(8px)", zIndex: "2147483647", maxWidth: "min(440px,90vw)", padding: "10px 14px", background: "rgba(28,28,30,.92)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", color: "#fff", font: "13px -apple-system,system-ui,sans-serif", lineHeight: "1.4", border: "1px solid rgba(255,255,255,.14)", borderRadius: "12px", boxShadow: "0 8px 30px rgba(0,0,0,.4)", opacity: "0", pointerEvents: "none", transition: "opacity .2s, transform .2s", whiteSpace: "pre-wrap" });
+  let toastTimer = null;
+  function showToast(text, ms) { toast.textContent = text; toast.style.opacity = "1"; toast.style.transform = "translateX(-50%) translateY(0)"; clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.style.opacity = "0"; toast.style.transform = "translateX(-50%) translateY(8px)"; }, ms || 4200); }
+  function hideToast() { clearTimeout(toastTimer); toast.style.opacity = "0"; toast.style.transform = "translateX(-50%) translateY(8px)"; }
 
   function renderColors() { bar.querySelectorAll("[data-color]").forEach(s => { const on = s.dataset.color === state.color; s.firstChild.style.boxShadow = on ? `0 0 0 2px #fff, 0 0 0 3px ${s.dataset.color}` : "0 0 0 1px rgba(255,255,255,.25) inset"; }); }
   function renderSizes() { Object.entries(sizeBtns).forEach(([l, b]) => { const on = SIZES[l] === state.size; b.style.background = on ? "rgba(255,255,255,.16)" : "transparent"; b.dataset.active = on ? "1" : ""; }); }
@@ -161,46 +181,52 @@
   function onKey(e) { const t = e.target; if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable)) return; if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z")) { e.preventDefault(); undo(); return; } const map = { a: "arrow", r: "box", p: "pen", t: "text" }; const tool = map[e.key.toLowerCase()]; if (tool) setTool(tool); }
   window.addEventListener("keydown", onKey);
 
-  document.body.appendChild(svg); document.body.appendChild(bar); document.body.appendChild(launcher);
+  document.body.appendChild(svg); document.body.appendChild(bar); document.body.appendChild(launcher); document.body.appendChild(toast);
+
+  // --- reply stream (Claude -> toast) ---------------------------------------
+  let es = null;
+  function connectEvents() {
+    try {
+      es = new EventSource(ENDPOINT + "/events");
+      es.onmessage = ev => { try { const m = JSON.parse(ev.data); if (m && m.type === "toast" && m.text) showToast(m.text, 6000); } catch (e) {} };
+      // EventSource auto-reconnects on error; nothing to do here.
+    } catch (e) { es = null; }
+  }
+  connectEvents();
 
   // --- show/hide & lifecycle ------------------------------------------------
   function expand() { bar.style.display = "flex"; launcher.style.display = "none"; svg.style.pointerEvents = "auto"; LS.set("__annot_min", "0"); }
   function minimize() { if (state.editing) { state.editing.blur(); } bar.style.display = "none"; launcher.style.display = "flex"; svg.style.pointerEvents = "none"; LS.set("__annot_min", "1"); }
-  // setBar(false) hides ALL overlay UI for a clean capture; setBar(true) restores.
-  function setBar(visible) { if (!visible) { bar.style.display = "none"; launcher.style.display = "none"; } else { LS.get("__annot_min") === "1" ? minimize() : expand(); } }
-  // arm(): clear the canvas, show the toolbar ready to draw, reset the pending outcome.
-  function arm() { if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } state.outcome = null; clearAll(); expand(); setTool(state.tool); renderColors(); renderSizes(); }
-  function finish(outcome) {
-    state.outcome = outcome || "send";
-    if (state.outcome === "send") { // instant feedback: collapse to the pill while Claude works (drawings stay for the capture)
-      if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); }
-      bar.style.display = "none"; launcher.style.display = "flex"; svg.style.pointerEvents = "none";
+  // setBar(false) hides ALL overlay UI (bar, launcher, toast) for a clean capture; setBar(true) restores.
+  function setBar(visible) { if (!visible) { bar.style.display = "none"; launcher.style.display = "none"; hideToast(); } else { LS.get("__annot_min") === "1" ? minimize() : expand(); } }
+  // arm(): clear the canvas, show the toolbar ready to draw.
+  function arm() { if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } clearAll(); expand(); setTool(state.tool); renderColors(); renderSizes(); }
+  // send(): POST the drawings' existence to the channel; Claude captures + incorporates.
+  async function send() {
+    if (state.editing) state.editing.blur(); // commit any open note first
+    // instant feedback: collapse to the pill (drawings stay in the SVG for the capture)
+    bar.style.display = "none"; launcher.style.display = "flex"; svg.style.pointerEvents = "none";
+    try {
+      const r = await fetch(ENDPOINT + "/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: location.href, notes: String(state.items.length) }) });
+      if (!r.ok) throw new Error("status " + r.status);
+      showToast("Sent to Claude…");
+    } catch (e) {
+      expand();
+      showToast("Can't reach the annotate channel. Start Claude with:\n--dangerously-load-development-channels plugin:annotate@tom-tools", 9000);
     }
-    if (state.resolve) { state.resolve(state.outcome); state.resolve = null; }
   }
   // disable(): fully leave review mode — remove the overlay and stop it returning on reload.
-  function disable() { LS.set("__annot_off", "1"); if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("keydown", onKey); rm(svg); rm(bar); rm(launcher); delete window.__annot; if (state.resolve) { state.resolve("close"); state.resolve = null; } }
+  function disable() { LS.set("__annot_off", "1"); if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } try { if (es) es.close(); } catch (e) {} window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("keydown", onKey); rm(svg); rm(bar); rm(launcher); rm(toast); delete window.__annot; }
 
   window.__annot = {
-    arm, finish, setBar, disable, expand, minimize, clear: clearAll,
-    get outcome() { return state.outcome; },
-    count: () => state.items.length,
-    // Blocking wait. Resolves "send" (or "close" if disabled). Self-caps so a
-    // possible MCP timeout never strands the loop — caller re-issues; sticky outcome
-    // means no click is ever lost. Minimizing does NOT resolve it (still waiting).
-    waitNext(capMs) {
-      return new Promise(res => {
-        if (state.outcome) return res(state.outcome);
-        state.resolve = res;
-        setTimeout(() => { if (!state.outcome) { state.resolve = null; res("rearm"); } }, capMs || 240000);
-      });
-    }
+    arm, send, setBar, disable, expand, minimize, clear: clearAll, toast: showToast,
+    count: () => state.items.length
   };
 
   // initial visibility: respect a prior minimize, else open
-  state.outcome = null; clearAll(); setTool(state.tool); renderColors(); renderSizes();
+  clearAll(); setTool(state.tool); renderColors(); renderSizes();
   LS.get("__annot_min") === "1" ? minimize() : expand();
-  return "annotation overlay ready (persistent, launcher, bottom)";
+  return "annotation overlay ready (channel, persistent, launcher, bottom)";
   };
 
   if (document.body) return build();

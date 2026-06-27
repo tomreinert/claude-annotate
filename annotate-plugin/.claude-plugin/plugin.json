@@ -1,10 +1,9 @@
 {
   "name": "annotate",
   "displayName": "Live UI Annotate",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Draw on a live frontend in the Playwright browser and feed the annotated screenshot straight back into the Claude Code session. Fully local, no cloud, no extension.",
   "author": { "name": "Tom Reinert" },
   "license": "MIT",
-  "keywords": ["annotation", "frontend", "playwright", "screenshot", "design-review"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["annotation", "frontend", "playwright", "screenshot", "design-review", "channel"]
 }
