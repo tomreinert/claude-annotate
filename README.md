@@ -1,15 +1,10 @@
 # Live UI Annotate
 
-A Claude Code plugin to give visual feedback to Claude by drawing right on your
-live site in the browser.
+A Claude Code plugin to give visual feedback to claude via playwright.
 
-You're reviewing a page Claude built, you spot things to change, so you draw on it —
-arrows, boxes, notes — and send it straight back into your Claude session. Claude
-sees exactly what you marked up and fixes it. No describing pixels in words.
+This is useful when you look at Claude's work in a browser and want to give feedback. Instead of describing the changes, draw and annotate on the site and send it to claude.
 
-<!-- Drop your screen recording here, e.g.: ![demo](demo.gif) -->
-_Demo: a Claude session and the browser side by side — calling annotate, drawing
-feedback, sending it, and Claude correcting the page._
+<!-- Screen recording of a claude session and browser side by side with someone calling annotate, then drawing and sending the feedback and claude correcting it -->
 
 ## Install
 
@@ -18,19 +13,12 @@ claude plugin marketplace add tomreinert/claude-annotate
 claude plugin install annotate@tom-tools --scope user
 ```
 
-Then restart Claude Code. You'll also need the Playwright MCP server connected and
-a localhost dev server running for the site you want to annotate.
+Then restart Claude Code. You need the Playwright MCP connected.
 
 ## Use
 
-1. Let Claude open your localhost site in Playwright.
-2. Call **`/annotate`** — a toolbar appears on your site with tools to draw
-   (pen, arrows, rectangles, sticky notes).
-3. Draw your feedback and hit **Send** — it goes right back into the Claude session.
+1. Let Claude open your localhost site in playwright
+2. Call `/annotate` and you will get tools to draw on your site.
+3. Send your feedback right back into the Claude Session
 
-Claude works on it, shows you the updated page, and you can keep going: draw, send,
-repeat. Minimize the toolbar to a small ✏ pill anytime, and click it to reopen.
-
-> **Note:** When you annotate, Claude stops and waits for you. To continue, either
-> **Send** your feedback, or press **Escape** in the Claude session to abort the
-> wait.
+Note: Claude will stop and wait when you annotate, to continue the session either send your feedback or just escape in the claude session to abort the wait for feedback.
