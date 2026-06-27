@@ -170,7 +170,14 @@
   function setBar(visible) { if (!visible) { bar.style.display = "none"; launcher.style.display = "none"; } else { LS.get("__annot_min") === "1" ? minimize() : expand(); } }
   // arm(): clear the canvas, show the toolbar ready to draw, reset the pending outcome.
   function arm() { if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } state.outcome = null; clearAll(); expand(); setTool(state.tool); renderColors(); renderSizes(); }
-  function finish(outcome) { state.outcome = outcome || "send"; if (state.resolve) { state.resolve(state.outcome); state.resolve = null; } }
+  function finish(outcome) {
+    state.outcome = outcome || "send";
+    if (state.outcome === "send") { // instant feedback: collapse to the pill while Claude works (drawings stay for the capture)
+      if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); }
+      bar.style.display = "none"; launcher.style.display = "flex"; svg.style.pointerEvents = "none";
+    }
+    if (state.resolve) { state.resolve(state.outcome); state.resolve = null; }
+  }
   // disable(): fully leave review mode — remove the overlay and stop it returning on reload.
   function disable() { LS.set("__annot_off", "1"); if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("keydown", onKey); rm(svg); rm(bar); rm(launcher); delete window.__annot; if (state.resolve) { state.resolve("close"); state.resolve = null; } }
 
