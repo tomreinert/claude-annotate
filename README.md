@@ -1,9 +1,15 @@
-# claude-annotate
+# Live UI Annotate
 
-A Claude Code marketplace hosting **Live UI Annotate** — a plugin to draw on a
-live frontend in the Playwright browser and feed the annotated screenshot straight
-back into your Claude Code session. Fully local: no cloud, no upload, no Chrome
-extension.
+A Claude Code plugin to give visual feedback to Claude by drawing right on your
+live site in the browser.
+
+You're reviewing a page Claude built, you spot things to change, so you draw on it —
+arrows, boxes, notes — and send it straight back into your Claude session. Claude
+sees exactly what you marked up and fixes it. No describing pixels in words.
+
+<!-- Drop your screen recording here, e.g.: ![demo](demo.gif) -->
+_Demo: a Claude session and the browser side by side — calling annotate, drawing
+feedback, sending it, and Claude correcting the page._
 
 ## Install
 
@@ -12,35 +18,19 @@ claude plugin marketplace add tomreinert/claude-annotate
 claude plugin install annotate@tom-tools --scope user
 ```
 
-Then restart Claude Code so the plugin's hooks load.
-
-**Requirements:** the Playwright MCP server connected in Claude Code, and a
-localhost dev server for the UI you want to annotate.
+Then restart Claude Code. You'll also need the Playwright MCP server connected and
+a localhost dev server running for the site you want to annotate.
 
 ## Use
 
-In any project, just say it in natural language:
+1. Let Claude open your localhost site in Playwright.
+2. Call **`/annotate`** — a toolbar appears on your site with tools to draw
+   (pen, arrows, rectangles, sticky notes).
+3. Draw your feedback and hit **Send** — it goes right back into the Claude session.
 
-- "let's review the UI" / "I want to annotate this" → review mode on, Claude
-  opens the page and shows a persistent drawing toolbar at the bottom.
-- Draw your feedback, then click **✓ Send**. The toolbar stays up.
-- Claude captures the annotated viewport, sees it, and incorporates your notes,
-  then presents the updated page so you can draw again.
-- Click **✕ Close** to put the toolbar away; say "annotate" to reopen it.
+Claude works on it, shows you the updated page, and you can keep going: draw, send,
+repeat. Minimize the toolbar to a small ✏ pill anytime, and click it to reopen.
 
-You never type a command or "done" — everything is controlled from the overlay.
-
-## What's in here
-
-```
-.claude-plugin/marketplace.json   the marketplace manifest (this is the entry point)
-annotate-plugin/                  the plugin itself
-  ├── .claude-plugin/plugin.json
-  ├── hooks/hooks.json            Stop · PostToolUse · SessionStart
-  ├── scripts/                    hook logic
-  ├── skills/annotate/SKILL.md    the annotation-round procedure
-  └── assets/overlay.js           the injectable drawing overlay
-```
-
-See [`annotate-plugin/README.md`](annotate-plugin/README.md) for how it works
-under the hood.
+> **Note:** When you annotate, Claude stops and waits for you. To continue, either
+> **Send** your feedback, or press **Escape** in the Claude session to abort the
+> wait.

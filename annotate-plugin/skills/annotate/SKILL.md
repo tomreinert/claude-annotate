@@ -1,67 +1,70 @@
 ---
 name: annotate
-description: Live-UI annotation — let the user draw on the page open in the Playwright MCP browser and feed the annotated screenshot back. The toolbar is a persistent surface the user drives (draw → Send → you work → draw → … → Close). Use when presenting a frontend change for visual feedback, when the user says they want to annotate/markup the UI or to "review" it, or when the Stop hook asks for an annotation round.
+description: Live-UI annotation — a persistent, draggable toolbar on the page in the Playwright MCP browser lets the user draw; the annotated screenshot flows back to you. The user draws → Send → you work → they draw again → … and minimizes to a launcher pill (✏) to get it out of the way. Use when presenting a frontend change for visual feedback, when the user wants to annotate/markup/"review" the UI, or when the Stop hook asks for an annotation pass.
 ---
 
 # Live UI Annotate
 
-Let the user draw directly on the live page in the Playwright MCP browser, then
-capture the annotated viewport and read it back. The toolbar is **persistent** —
-it stays up across many cycles. The user drives it: draw → **Send** → you work →
-the page updates → draw again → … → **Close**. The user never types "done".
-Everything is local.
+A persistent annotation toolbar sits on the live page. The user draws and clicks
+**Send**; you capture and incorporate; the toolbar stays. They can **minimize** it
+to a small launcher pill (✏, bottom-right) and reopen it anytime — no message to
+you needed. The user never types "done". Everything is local.
 
-## Procedure
+## Overlay injection — register ONCE per session via addInitScript
 
-1. **Page ready.** Make sure the page you want feedback on is open and refreshed
-   in the Playwright browser (`browser_navigate` / reload as needed).
+The overlay is registered once so the browser re-runs it on **every** page load
+(survives reloads/HMR; not re-sent each time). The bundled file's absolute path is
+given to you by the Stop / SessionStart hooks (`…/assets/overlay.js`).
 
-2. **Inject (or re-arm) the overlay.**
-   - First check: `browser_evaluate` → `() => !!window.__annot`.
-   - If **false** (page was freshly (re)loaded, or the user closed the toolbar):
-     read the entire contents of `${CLAUDE_PLUGIN_ROOT}/assets/overlay.js` and pass
-     it **verbatim** as the `function` argument to `browser_evaluate`. It is a
-     single bare arrow function. This injects via CDP and **bypasses the page's
-     CSP**, so it works on any localhost app regardless of framework or CSP.
-   - If **true**: just call `() => window.__annot.arm()` to ready a fresh drawing
-     (clears the canvas, keeps the toolbar up). This avoids re-sending the overlay.
+Register with `browser_run_code_unsafe`:
 
-3. **Block for the user.** Call `browser_evaluate` → `() => window.__annot.waitNext()`
-   and **await** it. It hangs until the user clicks a button, then returns:
-   - `"send"` — the user wants the current drawings processed. Go to step 4.
-   - `"close"` — the user closed the toolbar (it removes itself). **Mirror it:**
-     write `off` to `$CLAUDE_PROJECT_DIR/.claude/annotate.mode` and stop presenting.
-     The user reopens later by saying "annotate".
-   - `"rearm"` — a ~4 min self-timeout safety cap. Just call `waitNext()` again;
-     the click is never lost (the outcome is sticky).
+```js
+async (page) => {
+  await page.context().addInitScript({ path: '<OVERLAY_PATH>' });
+  await page.reload({ waitUntil: 'load' });          // apply to the current page too
+  return await page.evaluate(() => !!window.__annot); // expect true
+}
+```
 
-4. **Capture + see** (for `"send"`). The toolbar stays up, so hide it only for the
-   capture frame: `() => window.__annot.setBar(false)`, then `browser_take_screenshot`
-   (png, viewport, NOT fullPage — annotations are fixed to the viewport) to an
-   allowed path such as `.playwright-mcp/annot.png`, then `() => window.__annot.arm()`
-   (shows the bar again and clears the canvas for the next drawing). `Read` the PNG
-   so you can see the drawings.
+Do this when review starts, or any time `() => !!window.__annot` is false (e.g.
+the MCP browser was restarted — init scripts are per browser context).
 
-5. **Incorporate.** Apply the user's annotations (arrows, boxes, freehand, text
-   notes like "button bigger", "move dropdown here") to the code. After your edits
-   the `Stop` hook presents the page again so the user can keep annotating — the
-   toolbar persists across the whole session until they Close.
+**Fallback** if `browser_run_code_unsafe` is unavailable: inject per page load with
+`browser_evaluate`, passing the entire contents of `overlay.js` as the `function`
+argument. It is a self-invoking IIFE and runs as-is, via CDP (bypasses page CSP).
+In this mode you must re-inject after every navigation.
 
-## The overlay toolbar
+## Each annotation pass
 
-Arrow ↗, Box ▭, Freehand ✎, Text T, color swatches, Undo ⤺, Clear, and two control
-buttons: **✓ Send** (green — hand drawings over, toolbar stays) and **✕ Close**
-(remove the toolbar). `window.__annot` exposes `arm()`, `finish(outcome)`,
-`setBar(visible)`, `clear()`, `outcome`, `count()`, and `waitNext(capMs)`.
+1. Make sure the changed page is open/refreshed — the overlay auto-appears.
+2. `() => window.__annot.arm()` — clears the canvas, shows the toolbar ready to draw.
+3. `await () => window.__annot.waitNext()`. It returns:
+   - `"send"` — the user wants the drawings processed → step 4.
+   - `"rearm"` — a ~4 min self-timeout; just call `waitNext()` again. **Minimizing
+     does NOT resolve it** (the user is still deciding) — keep waiting.
+4. On `"send"`: `() => window.__annot.setBar(false)` (hides toolbar + launcher for a
+   clean shot) → `browser_take_screenshot` (png, viewport, NOT fullPage) to
+   `.playwright-mcp/annot.png` → `() => window.__annot.arm()` (restores the toolbar)
+   → `Read` the PNG → incorporate the annotations into the code.
+5. After your edits the `Stop` hook presents again, so the loop continues. The
+   toolbar persists across the whole session.
 
-## Turning review mode on/off — the user never types a command
+## Turning review on/off (the user never types a command)
 
-- **On:** when the user asks to review/annotate the UI (e.g. "let's review this",
-  "annotate"), write `on` to `$CLAUDE_PROJECT_DIR/.claude/annotate.mode`
-  (`mkdir -p` the dir first), then present the current page.
-- **Browser-driven after that:** you mirror the user's button choice into the mode
-  file — `"close"` ⇒ write `off`; `"send"` ⇒ leave it `on`. The user controls
-  everything from the overlay; they never touch the file or type commands.
-- **Enforcement:** while the mode file says `on`, the bundled `Stop` hook blocks
-  you from ending a turn after a frontend change without presenting — so the loop
-  is guaranteed, not just remembered.
+- **On** ("let's review", "annotate"): write `on` to `<project>/.claude/annotate.mode`
+  (the hooks give you the path), ensure the overlay is registered, and present.
+- **Off** ("stop reviewing", "I'm done"): `() => window.__annot.disable()` (removes
+  the overlay and stops it returning on reload via an in-page flag) and write `off`
+  to the mode file.
+- **Reopen after off** ("annotate" again): clear the flag with
+  `() => { try { localStorage.removeItem("__annot_off"); } catch (e) {} }`, then
+  re-run setup and present.
+
+## Toolbar
+
+Drag it by the grip dots (default bottom-center). Tools: **Arrow** (A),
+**Rectangle** (R; Shift = square), **Pen** (P; smoothed strokes), **Text** (T;
+sticky note — faint yellow, black border/text). Colors, stroke **S/M/L**, **Undo**
+(Cmd/Ctrl+Z), **Clear**, green **Send**, and **✕** which minimizes to the launcher
+pill. `window.__annot` exposes `arm`, `waitNext`, `setBar`, `finish`, `disable`,
+`expand`, `minimize`, `clear`, `count`, `outcome`.

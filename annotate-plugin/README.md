@@ -1,64 +1,31 @@
 # Live UI Annotate
 
-A Claude Code plugin to annotate live frontend UIs and feed the marked-up
-screenshot straight back into your session. Fully local — uses the Playwright
-MCP browser, no cloud, no upload, no Chrome extension.
+A Claude Code plugin to give visual feedback to Claude by drawing right on your
+live site in the browser.
 
-## What it does
-
-1. You ask Claude to review/annotate the UI ("let's review this"). That turns
-   on review mode for this project.
-2. Claude changes frontend code and opens the page in the Playwright browser.
-3. A persistent drawing toolbar (arrow, box, freehand, text, colors) sits at the
-   bottom of the live page.
-4. You draw your feedback and click **✓ Send**. The toolbar stays up.
-5. Claude captures the annotated viewport, sees it, and incorporates your notes,
-   then presents the updated page so you can draw again.
-6. Repeat as long as you like. Click **✕ Close** to put the toolbar away; say
-   "annotate" to bring it back.
-
-Everything is controlled from the overlay in the browser — you never type a
-command or "done". Claude mirrors Close into a per-project state file so a `Stop`
-hook can guarantee the loop, but you never touch that file.
-
-## Requirements
-
-- The Playwright MCP server connected in Claude Code (the plugin injects its
-  overlay through `browser_evaluate`).
-- A localhost dev server for the UI you want to annotate.
+You spot something to change on a page Claude built, so you draw on it — arrows,
+boxes, sticky notes — and send it straight back into your Claude session. Claude
+sees exactly what you marked and fixes it.
 
 ## Install
 
-**Local (development):**
 ```bash
-claude --plugin-dir /path/to/annotate-plugin
+claude plugin marketplace add tomreinert/claude-annotate
+claude plugin install annotate@tom-tools --scope user
 ```
 
-**Via marketplace (from a git repo containing this folder + marketplace.json):**
-```bash
-claude plugin marketplace add <you>/<repo>
-claude plugin install annotate@<marketplace-name> --scope user
-```
+Then restart Claude Code. Requires the Playwright MCP server connected and a
+localhost dev server for the site you want to annotate.
 
 ## Use
 
-Just say it in natural language:
+1. Let Claude open your localhost site in Playwright.
+2. Call **`/annotate`** — a toolbar appears with tools to draw (pen, arrows,
+   rectangles, sticky notes).
+3. Draw your feedback and hit **Send** — it goes right back into the Claude session.
 
-- "let's review this" / "I want to annotate this" → review mode on, toolbar appears
-- draw, then click **✓ Send** to hand it over; the toolbar stays for the next pass
-- click **✕ Close** to put the toolbar away; say "annotate" to reopen it
+Keep going as long as you like: draw, send, repeat. Minimize the toolbar to a
+small ✏ pill anytime, and click it to reopen.
 
-When on, just ask Claude to make a frontend change — it presents the page for
-annotation after the change, waits for your drawing, and continues.
-
-## How it works
-
-- `assets/overlay.js` — a self-contained drawing overlay (bare arrow function).
-  Injected via `browser_evaluate`, which runs through CDP and bypasses page CSP,
-  so it works on any localhost app. Exposes `window.__annot.waitNext()`, a promise
-  that resolves on Send/Close — that single blocking call is how Claude waits for
-  you hands-free.
-- `hooks/hooks.json` — `PostToolUse` flags frontend edits, `Stop` enforces a round
-  while mode is on and edits keep happening, `SessionStart` reports the mode.
-- `skills/annotate/SKILL.md` — the round procedure.
-- Per-project state lives in `<project>/.claude/annotate.mode`.
+> **Note:** When you annotate, Claude stops and waits. To continue, either **Send**
+> your feedback or press **Escape** in the Claude session to abort the wait.
