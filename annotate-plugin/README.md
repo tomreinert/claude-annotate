@@ -1,4 +1,6 @@
-# Live UI Annotate
+# Claude Annotate
+
+⚠️ Alpha, testing this while I build
 
 A Claude Code plugin to give visual feedback to claude via playwright.
 
