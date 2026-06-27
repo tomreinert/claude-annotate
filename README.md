@@ -4,7 +4,8 @@ A Claude Code plugin to give visual feedback to claude via playwright.
 
 Instead of describing the changes, draw and annotate on the site and send it back to to Claude.
 
-<!-- Screen recording of a claude session and browser side by side with someone calling annotate, then drawing and sending the feedback and claude correcting it -->
+<img width="1728" height="1084" alt="screenshot 2026-06-27 um 10 16 57" src="https://github.com/user-attachments/assets/a1ee4ce6-708e-490f-a207-4a641360599f" />
+
 
 ## Install
 
