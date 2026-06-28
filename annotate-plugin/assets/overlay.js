@@ -46,7 +46,7 @@
   const NS = "http://www.w3.org/2000/svg";
   const COLORS = ["#ff2d55", "#0a84ff", "#34c759", "#ffd60a", "#111111"];
   const SIZES = { S: 2.5, M: 4, L: 7 };
-  const state = { tool: "arrow", color: COLORS[0], size: SIZES.M, drawing: false, start: null, node: null, pts: [], items: [], shift: false, editing: null };
+  const state = { tool: "pen", color: COLORS[0], size: SIZES.M, drawing: false, start: null, node: null, pts: [], items: [], shift: false, editing: null };
 
   // --- drawing layer --------------------------------------------------------
   const svg = document.createElementNS(NS, "svg");
