@@ -30,7 +30,7 @@ function broadcast(obj) {
 }
 
 const mcp = new Server(
-  { name: "annotate", version: "0.2.1" },
+  { name: "annotate", version: "0.2.2" },
   {
     capabilities: { experimental: { "claude/channel": {} }, tools: {} },
     instructions: [

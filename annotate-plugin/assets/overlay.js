@@ -201,21 +201,31 @@
   // --- show/hide & lifecycle ------------------------------------------------
   function expand() { bar.style.display = "flex"; launcher.style.display = "none"; svg.style.pointerEvents = "auto"; LS.set("__annot_min", "0"); }
   function minimize() { if (state.editing) { state.editing.blur(); } bar.style.display = "none"; launcher.style.display = "flex"; svg.style.pointerEvents = "none"; LS.set("__annot_min", "1"); }
-  // setBar(false) hides ALL overlay UI (bar, launcher, toast) for a clean capture; setBar(true) restores.
-  function setBar(visible) { if (!visible) { bar.style.display = "none"; launcher.style.display = "none"; hideToast(); } else { LS.get("__annot_min") === "1" ? minimize() : expand(); } }
-  // arm(): clear the canvas, show the toolbar ready to draw.
-  function arm() { if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } clearAll(); expand(); setTool(state.tool); renderColors(); renderSizes(); }
-  // send(): POST the drawings' existence to the channel; Claude captures + incorporates.
+  // setBar(false) hides the overlay UI for a CLEAN capture without moving it: opacity
+  // only, so the toolbar stays exactly in place (and minimized/expanded state is kept).
+  // The drawings (svg) stay visible on purpose — they are what gets screenshotted.
+  function setBar(visible) {
+    const v = visible ? "" : "0", pe = visible ? "" : "none";
+    bar.style.opacity = v; bar.style.pointerEvents = pe;
+    launcher.style.opacity = v; launcher.style.pointerEvents = pe;
+    if (!visible) hideToast();
+  }
+  // arm(): clear the canvas and make the toolbar visible again, in place. Does NOT
+  // collapse, move, or change minimized/expanded state — the bar just stays put.
+  let sending = false;
+  function arm() { if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } clearAll(); sending = false; setBar(true); setTool(state.tool); renderColors(); renderSizes(); }
+  // send(): POST the drawings to the channel; Claude captures + incorporates. The
+  // toolbar deliberately stays put — no collapse — so it never flickers away on Send.
   async function send() {
+    if (sending) return; // already in flight; ignore double-clicks until arm() resets
     if (state.editing) state.editing.blur(); // commit any open note first
-    // instant feedback: collapse to the pill (drawings stay in the SVG for the capture)
-    bar.style.display = "none"; launcher.style.display = "flex"; svg.style.pointerEvents = "none";
+    sending = true;
     try {
       const r = await fetch(ENDPOINT + "/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: location.href, notes: String(state.items.length) }) });
       if (!r.ok) throw new Error("status " + r.status);
       showToast("Sent to Claude…");
     } catch (e) {
-      expand();
+      sending = false;
       showToast("Can't reach the annotate channel. Start Claude with:\n--dangerously-load-development-channels plugin:annotate@tom-tools", 9000);
     }
   }
