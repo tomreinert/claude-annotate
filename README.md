@@ -58,10 +58,11 @@ to tuck it into the launcher pill (✏) you can reopen anytime.
 It is safe, and the flag is less alarming than it sounds.
 
 The plugin uses a Claude Code "channel" to push your annotations into your session.
-During the research preview, Claude Code only loads channels that are on Anthropic's
-official allowlist unless you pass that flag. This plugin is not on that list, so the
-flag is simply how you say "yes, load this one". It does **not** grant the plugin any
-extra access to your machine.
+That is what makes Send land even when Claude is mid-task, and it is the only way for
+the browser toolbar to reach your session. During the research preview, Claude Code
+only auto-loads channels that are on Anthropic's official allowlist; everything else
+needs this flag. This plugin is not on that list, so the flag is simply how you say
+"yes, load this one". It does **not** grant the plugin any extra access to your machine.
 
 Everything runs locally and is locked down:
 
@@ -73,6 +74,29 @@ Everything runs locally and is locked down:
   goes through Claude Code's normal approval prompts.
 - The whole thing is open source, so you (or Claude) can read every line before
   trusting it.
+
+### Can I avoid the flag? Will this ever be on the allowlist?
+
+Two ways the flag goes away:
+
+- **Inside a Team or Enterprise org**, an Owner can allow this plugin in managed
+  settings, after which everyone in the org launches with plain `--channels` (no dev
+  flag). Add it to `allowedChannelPlugins` (and make sure members have the `tom-tools`
+  marketplace added):
+
+  ```json
+  {
+    "channelsEnabled": true,
+    "allowedChannelPlugins": [
+      { "marketplace": "tom-tools", "plugin": "annotate" }
+    ]
+  }
+  ```
+
+- **Anthropic's public allowlist** is curated by Anthropic and currently only covers
+  the official `claude-plugins-official` channels. There is no self-serve submission
+  for it during the research preview, so until that changes, public users need the
+  dev flag.
 
 ### Does it work with more than one project open at once?
 
