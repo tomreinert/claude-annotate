@@ -27,6 +27,10 @@
   // if it wasn't injected — that will simply fail to connect rather than hit the
   // wrong session's server.
   const ENDPOINT = (typeof window !== "undefined" && window.__ANNOT_ENDPOINT) || "http://localhost:8799";
+  // Per-session secret the injecting Claude session sets via get_endpoint. Sent on
+  // every request so other pages/processes can't talk to this session's server.
+  const TOKEN = (typeof window !== "undefined" && window.__ANNOT_TOKEN) || "";
+  const Q = "?t=" + encodeURIComponent(TOKEN);
   const LS = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
   if (LS.get("__annot_off") === "1") return "disabled";
   // Re-injection: if the API is live AND its DOM is still attached, just re-arm.
@@ -191,7 +195,7 @@
   let es = null;
   function connectEvents() {
     try {
-      es = new EventSource(ENDPOINT + "/events");
+      es = new EventSource(ENDPOINT + "/events" + Q);
       es.onmessage = ev => { try { const m = JSON.parse(ev.data); if (m && m.type === "toast" && m.text) showToast(m.text, 6000); } catch (e) {} };
       // EventSource auto-reconnects on error; nothing to do here.
     } catch (e) { es = null; }
@@ -221,7 +225,7 @@
     if (state.editing) state.editing.blur(); // commit any open note first
     sending = true;
     try {
-      const r = await fetch(ENDPOINT + "/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: location.href, notes: String(state.items.length) }) });
+      const r = await fetch(ENDPOINT + "/send" + Q, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: location.href, notes: String(state.items.length) }) });
       if (!r.ok) throw new Error("status " + r.status);
       showToast("Sent to Claude…");
     } catch (e) {

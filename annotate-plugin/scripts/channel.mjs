@@ -18,8 +18,13 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import http from "node:http";
+import crypto from "node:crypto";
 
 const FIXED_PORT = process.env.ANNOTATE_PORT ? Number(process.env.ANNOTATE_PORT) : 0;
+// Per-session secret. Claude hands it to the overlay via get_endpoint; every
+// /send and /events request must carry it (?t=). This stops any other web page or
+// local process from posting into this session even if it finds the port.
+const TOKEN = crypto.randomBytes(18).toString("hex");
 let endpoint = null; // set once the HTTP server is listening
 
 // --- outbound (Claude -> overlay): SSE listeners for toasts ----------------
@@ -30,12 +35,12 @@ function broadcast(obj) {
 }
 
 const mcp = new Server(
-  { name: "annotate", version: "0.2.3" },
+  { name: "annotate", version: "0.2.4" },
   {
     capabilities: { experimental: { "claude/channel": {} }, tools: {} },
     instructions: [
       "The 'annotate' channel delivers live UI feedback from a drawing toolbar overlaid on the page open in the Playwright MCP browser.",
-      "Before injecting the overlay, call the 'get_endpoint' tool to get THIS session's channel URL, and inject it as window.__ANNOT_ENDPOINT (see the annotate skill) so the toolbar posts to this session and not another one.",
+      "Before injecting the overlay, call the 'get_endpoint' tool to get THIS session's channel {url, token} (JSON), and inject them as window.__ANNOT_ENDPOINT and window.__ANNOT_TOKEN (see the annotate skill) so the toolbar posts to this session and is authorized.",
       "A <channel source=\"annotate\"> event means the user drew annotations on the page at the given url and pressed Send.",
       "When one arrives, do this in order, without narrating the mechanics:",
       "(1) browser_evaluate `() => window.__annot && window.__annot.setBar(false)` to hide the toolbar;",
@@ -53,7 +58,7 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: "get_endpoint",
-      description: "Return this session's annotate channel URL. Inject it as window.__ANNOT_ENDPOINT before the overlay so the toolbar posts to this session.",
+      description: "Return this session's annotate channel {url, token} as JSON. Inject url as window.__ANNOT_ENDPOINT and token as window.__ANNOT_TOKEN before the overlay so the toolbar posts to this session and is authorized.",
       inputSchema: { type: "object", properties: {} },
     },
     {
@@ -70,7 +75,7 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (req.params.name === "get_endpoint") {
-    return { content: [{ type: "text", text: endpoint || "" }] };
+    return { content: [{ type: "text", text: JSON.stringify({ url: endpoint, token: TOKEN }) }] };
   }
   if (req.params.name === "reply") {
     const text = String((req.params.arguments || {}).text || "").trim();
@@ -93,6 +98,12 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
 
   if (req.method === "OPTIONS") { res.writeHead(204, CORS); return res.end(); }
+
+  // Everything except the health check requires this session's token.
+  if (url.pathname !== "/health" && url.searchParams.get("t") !== TOKEN) {
+    res.writeHead(403, { ...CORS, "Content-Type": "application/json" });
+    return res.end(JSON.stringify({ ok: false, error: "forbidden" }));
+  }
 
   // overlay subscribes here for reply toasts
   if (req.method === "GET" && url.pathname === "/events") {

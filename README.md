@@ -1,22 +1,23 @@
 # Live UI Annotate
 
-A Claude Code plugin to give visual feedback to Claude via Playwright.
-
-Instead of describing the changes, draw and annotate on the site and send it back to Claude.
+Draw your feedback right on top of your running app and send it straight to Claude.
 
 <img width="1728" height="1084" alt="screenshot 2026-06-27 um 10 16 57" src="https://github.com/user-attachments/assets/a1ee4ce6-708e-490f-a207-4a641360599f" />
 
+## Why
 
-## How it works
+When you are looking at Claude's work in the browser, it is much faster to circle
+the thing and scribble "make this bigger" than to describe it in words. This plugin
+puts a little drawing toolbar on your live page. You mark up what you want, hit
+**Send**, and Claude sees exactly what you meant and makes the change. No more
+writing "the button in the top right, no the other one, move it down a bit".
 
-The drawing toolbar is injected onto your page in the Playwright browser. When you hit **Send**, the overlay posts to a local **channel** server (an MCP server that pushes events into your running Claude Code session). Claude wakes up, screenshots your annotations, reads them, and gets to work, then sends a short confirmation toast back onto the page. Because it is a channel, Send lands whether or not Claude is mid-turn. Everything is local.
+## What you can do
 
-## Requirements
-
-- Claude Code v2.1.80 or later (channels are a [research preview](https://code.claude.com/docs/en/channels))
-- Node.js (used to run the channel server; no Bun needed)
-- The [Playwright MCP](https://playwright.dev/docs/getting-started-mcp) connected
-- Anthropic auth via claude.ai or a Console API key (channels are not available on Bedrock, Vertex, or Foundry)
+- Draw arrows, boxes, freehand strokes, and sticky notes anywhere on your page.
+- Send the marked-up view to Claude with one click. It picks it up and gets to work.
+- Keep iterating: draw, send, watch the change, draw again. The toolbar stays put.
+- Tuck it away into a small pill when you want it out of the way, and pop it back when you need it.
 
 ## Install
 
@@ -25,9 +26,12 @@ claude plugin marketplace add tomreinert/claude-annotate
 claude plugin install annotate@tom-tools --scope user
 ```
 
+You will also need the [Playwright MCP](https://playwright.dev/docs/getting-started-mcp)
+connected, since the toolbar lives on the page Claude opens in Playwright.
+
 ## Use
 
-Start Claude Code with the channel enabled. Custom channels are not on Anthropic's allowlist yet, so launch with the development flag:
+Launch Claude Code with the channel turned on:
 
 ```bash
 claude --dangerously-load-development-channels plugin:annotate@tom-tools
@@ -35,14 +39,52 @@ claude --dangerously-load-development-channels plugin:annotate@tom-tools
 
 Then:
 
-1. Let Claude open your localhost site in Playwright.
-2. Call `/annotate`. The drawing toolbar appears on your page.
-3. Draw your feedback and hit **Send**. It flows straight into the session; Claude acts on it and a toast confirms what it changed.
+1. Let Claude open your localhost site.
+2. Type `/annotate`. The drawing toolbar appears on the page.
+3. Draw your feedback and hit **Send**. Claude makes the change and a little toast confirms what it did.
 
-Repeat as often as you like. Say "stop reviewing" when you are done.
-
-If the toolbar shows but Send reports "Can't reach the annotate channel", the session was started without the channel flag above.
+Keep drawing and sending as often as you like. Say "stop reviewing" when you are done.
 
 ## Toolbar
 
-Arrow (A), Rectangle (R, Shift = square), Pen (P), Text (T, sticky note). Colors, stroke S/M/L, Undo (Cmd/Ctrl+Z), Clear, green Send, and ✕ to minimize to a launcher pill (✏) you can reopen anytime.
+Arrow (A), Rectangle (R, Shift = square), Pen (P), Text (T, sticky note). Plus
+colors, stroke size S/M/L, Undo (Cmd/Ctrl+Z), Clear, the green Send button, and ✕
+to tuck it into the launcher pill (✏) you can reopen anytime.
+
+## FAQ
+
+### Why the scary `--dangerously-load-development-channels` flag? Is it safe?
+
+It is safe, and the flag is less alarming than it sounds.
+
+The plugin uses a Claude Code "channel" to push your annotations into your session.
+During the research preview, Claude Code only loads channels that are on Anthropic's
+official allowlist unless you pass that flag. This plugin is not on that list, so the
+flag is simply how you say "yes, load this one". It does **not** grant the plugin any
+extra access to your machine.
+
+Everything runs locally and is locked down:
+
+- The little server only listens on your own machine (localhost), on a random port
+  per session. Nothing is sent to any cloud service.
+- Every request carries a secret token unique to your session, so other websites or
+  programs on your machine cannot talk to it even if they find the port.
+- It never asks to approve actions for you. Anything Claude does in response still
+  goes through Claude Code's normal approval prompts.
+- The whole thing is open source, so you (or Claude) can read every line before
+  trusting it.
+
+### Does it work with more than one project open at once?
+
+Yes. Each Claude Code session runs its own server on its own port, so annotations
+always go to the session you are drawing in.
+
+### The toolbar shows but Send says it can't reach the channel.
+
+The session was started without the channel flag. Relaunch with
+`claude --dangerously-load-development-channels plugin:annotate@tom-tools`.
+
+### Why does it need Playwright?
+
+The toolbar is drawn onto the actual page in the browser Claude controls through the
+Playwright MCP. That is also how Claude captures what you drew.
