@@ -22,7 +22,11 @@
 // This file is a single bare arrow function: pass its contents verbatim as the
 // `content` of addInitScript and/or the `function` of browser_evaluate.
 (() => {
-  const ENDPOINT = "http://localhost:8799"; // must match the channel server's ANNOTATE_PORT
+  // The injecting session sets window.__ANNOT_ENDPOINT to its own channel server's
+  // URL (each session uses a different ephemeral port). Fall back to a guess only
+  // if it wasn't injected — that will simply fail to connect rather than hit the
+  // wrong session's server.
+  const ENDPOINT = (typeof window !== "undefined" && window.__ANNOT_ENDPOINT) || "http://localhost:8799";
   const LS = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
   if (LS.get("__annot_off") === "1") return "disabled";
   // Re-injection: if the API is live AND its DOM is still attached, just re-arm.

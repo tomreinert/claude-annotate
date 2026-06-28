@@ -8,13 +8,19 @@
 // parked in a tool call. Two-way: Claude calls the `reply` tool to show a toast
 // back on the page (SSE on /events).
 //
+// PORT: each session spawns its own server, so we bind an EPHEMERAL port by
+// default (set ANNOTATE_PORT to pin one). Claude learns the actual port via the
+// `get_endpoint` tool and injects it into the overlay, so every session's toolbar
+// talks to ITS OWN server — no cross-session collision on a shared fixed port.
+//
 // stdout is reserved for the MCP JSON-RPC stream — every log goes to stderr.
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import http from "node:http";
 
-const PORT = Number(process.env.ANNOTATE_PORT || 8799);
+const FIXED_PORT = process.env.ANNOTATE_PORT ? Number(process.env.ANNOTATE_PORT) : 0;
+let endpoint = null; // set once the HTTP server is listening
 
 // --- outbound (Claude -> overlay): SSE listeners for toasts ----------------
 const listeners = new Set();
@@ -24,11 +30,12 @@ function broadcast(obj) {
 }
 
 const mcp = new Server(
-  { name: "annotate", version: "0.2.0" },
+  { name: "annotate", version: "0.2.1" },
   {
     capabilities: { experimental: { "claude/channel": {} }, tools: {} },
     instructions: [
       "The 'annotate' channel delivers live UI feedback from a drawing toolbar overlaid on the page open in the Playwright MCP browser.",
+      "Before injecting the overlay, call the 'get_endpoint' tool to get THIS session's channel URL, and inject it as window.__ANNOT_ENDPOINT (see the annotate skill) so the toolbar posts to this session and not another one.",
       "A <channel source=\"annotate\"> event means the user drew annotations on the page at the given url and pressed Send.",
       "When one arrives, do this in order, without narrating the mechanics:",
       "(1) browser_evaluate `() => window.__annot && window.__annot.setBar(false)` to hide the toolbar;",
@@ -41,20 +48,30 @@ const mcp = new Server(
   }
 );
 
-// --- reply tool (Claude -> overlay toast) ----------------------------------
+// --- tools -----------------------------------------------------------------
 mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{
-    name: "reply",
-    description: "Show a short confirmation toast on the annotated page. One line: what you changed or are doing.",
-    inputSchema: {
-      type: "object",
-      properties: { text: { type: "string", description: "One short line to show the user." } },
-      required: ["text"],
+  tools: [
+    {
+      name: "get_endpoint",
+      description: "Return this session's annotate channel URL. Inject it as window.__ANNOT_ENDPOINT before the overlay so the toolbar posts to this session.",
+      inputSchema: { type: "object", properties: {} },
     },
-  }],
+    {
+      name: "reply",
+      description: "Show a short confirmation toast on the annotated page. One line: what you changed or are doing.",
+      inputSchema: {
+        type: "object",
+        properties: { text: { type: "string", description: "One short line to show the user." } },
+        required: ["text"],
+      },
+    },
+  ],
 }));
 
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
+  if (req.params.name === "get_endpoint") {
+    return { content: [{ type: "text", text: endpoint || "" }] };
+  }
   if (req.params.name === "reply") {
     const text = String((req.params.arguments || {}).text || "").trim();
     broadcast({ type: "toast", text });
@@ -72,8 +89,8 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-http.createServer((req, res) => {
-  const url = new URL(req.url, `http://localhost:${PORT}`);
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, "http://localhost");
 
   if (req.method === "OPTIONS") { res.writeHead(204, CORS); return res.end(); }
 
@@ -117,6 +134,20 @@ http.createServer((req, res) => {
   }
 
   res.writeHead(404, CORS); res.end("not found");
-}).listen(PORT, "127.0.0.1", () => {
-  process.stderr.write(`annotate channel: http://localhost:${PORT}\n`);
+});
+
+// If a pinned ANNOTATE_PORT is busy, fall back to an ephemeral port rather than
+// crashing the whole MCP server (which shows up as "Failed to reconnect … -32000").
+server.on("error", (e) => {
+  if (e && e.code === "EADDRINUSE" && FIXED_PORT !== 0) {
+    process.stderr.write(`annotate: port ${FIXED_PORT} busy, using an ephemeral port\n`);
+    server.listen(0, "127.0.0.1");
+  } else {
+    process.stderr.write(`annotate: http server error: ${e}\n`);
+  }
+});
+
+server.listen(FIXED_PORT, "127.0.0.1", () => {
+  endpoint = `http://localhost:${server.address().port}`;
+  process.stderr.write(`annotate channel: ${endpoint}\n`);
 });

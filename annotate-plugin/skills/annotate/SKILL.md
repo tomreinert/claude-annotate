@@ -37,25 +37,34 @@ The user only wants:
 ## Starting a review ("annotate", "let's review")
 
 1. Make sure the page is open in the Playwright MCP browser (if none, ask which URL).
-2. Register the overlay **once per session** so it re-runs on every page load, via
-   `browser_run_code_unsafe`:
+2. Call the annotate **`get_endpoint` tool** to get THIS session's channel URL (each
+   session runs its server on its own ephemeral port). You'll get something like
+   `http://localhost:54231`.
+3. Register the overlay **once per session** so it re-runs on every page load. Inject
+   the endpoint global FIRST (so it's set before the overlay runs), then the overlay,
+   via `browser_run_code_unsafe` — pass the endpoint from step 2:
 
    ```js
    async (page) => {
+     await page.context().addInitScript(`window.__ANNOT_ENDPOINT = ${JSON.stringify('<ENDPOINT>')};`);
      await page.context().addInitScript({ path: '<OVERLAY_PATH>' });
      await page.reload({ waitUntil: 'load' });          // apply to the current page too
      return await page.evaluate(() => !!window.__annot); // expect true
    }
    ```
 
+   `<ENDPOINT>` is the string from `get_endpoint`. Without it the toolbar can't reach
+   this session and Send will fail.
+
    `<OVERLAY_PATH>` is `${CLAUDE_PLUGIN_ROOT}/assets/overlay.js`.
    Re-run this any time `() => !!window.__annot` is false (e.g. the MCP browser was
    restarted — init scripts are per browser context).
 
-   **Fallback** if `browser_run_code_unsafe` is unavailable: inject per page load
-   with `browser_evaluate`, passing the entire contents of `overlay.js` as the
-   `function` argument (a self-invoking IIFE; runs via CDP, bypasses page CSP).
-3. Tell the user it's ready to draw and hit Send. Then stop — you don't need to
+   **Fallback** if `browser_run_code_unsafe` is unavailable: per page load, first
+   `browser_evaluate` `() => { window.__ANNOT_ENDPOINT = '<ENDPOINT>'; }`, then
+   `browser_evaluate` the entire contents of `overlay.js` as the `function` argument
+   (a self-invoking IIFE; runs via CDP, bypasses page CSP).
+4. Tell the user it's ready to draw and hit Send. Then stop — you don't need to
    block or poll. The channel will wake you when they Send.
 
 ## Handling a Send (a `<channel source="annotate">` event)
