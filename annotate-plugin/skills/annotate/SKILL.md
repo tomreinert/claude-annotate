@@ -46,9 +46,16 @@ The user only wants:
 
    ```js
    async (page) => {
-     await page.context().addInitScript(`window.__ANNOT_ENDPOINT=${JSON.stringify('<URL>')};window.__ANNOT_TOKEN=${JSON.stringify('<TOKEN>')};`);
-     await page.context().addInitScript({ path: '<OVERLAY_PATH>' });
-     await page.reload({ waitUntil: 'load' });          // apply to the current page too
+     // Only expose the url + token on local origins, so they never leak to a
+     // third-party site opened in the same browser context.
+     await page.context().addInitScript(({ u, t }) => {
+       const h = location.hostname;
+       if (h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "[::1]" || h.endsWith(".localhost")) {
+         window.__ANNOT_ENDPOINT = u; window.__ANNOT_TOKEN = t;
+       }
+     }, { u: "<URL>", t: "<TOKEN>" });
+     await page.context().addInitScript({ path: "<OVERLAY_PATH>" });
+     await page.reload({ waitUntil: "load" });          // apply to the current page too
      return await page.evaluate(() => !!window.__annot); // expect true
    }
    ```

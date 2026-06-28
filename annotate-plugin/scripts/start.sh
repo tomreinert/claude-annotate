@@ -4,6 +4,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if [ ! -d node_modules/@modelcontextprotocol ]; then
-  npm install --silent --no-audit --no-fund --no-progress 1>&2
+  # Deterministic install from the committed lockfile when present; npm install otherwise.
+  if [ -f package-lock.json ]; then
+    npm ci --silent --no-audit --no-fund --no-progress 1>&2
+  else
+    npm install --silent --no-audit --no-fund --no-progress 1>&2
+  fi
 fi
 exec node scripts/channel.mjs

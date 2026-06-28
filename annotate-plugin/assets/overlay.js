@@ -10,7 +10,8 @@
 // user clicks to reopen — no round-trip to Claude needed.
 //
 // Flow (channel-based): the user draws and clicks Send -> the overlay POSTs to the
-// local annotate *channel* server (http://localhost:8799/send), which pushes a
+// local annotate *channel* server (its URL + token are injected per session as
+// window.__ANNOT_ENDPOINT / window.__ANNOT_TOKEN), which pushes a
 // <channel source="annotate"> event into the Claude Code session. Claude then hides
 // the bar, screenshots, re-arms, reads the PNG, and incorporates the feedback —
 // and may call its reply tool, which streams back over /events as a toast here.
@@ -22,15 +23,18 @@
 // This file is a single bare arrow function: pass its contents verbatim as the
 // `content` of addInitScript and/or the `function` of browser_evaluate.
 (() => {
-  // The injecting session sets window.__ANNOT_ENDPOINT to its own channel server's
-  // URL (each session uses a different ephemeral port). Fall back to a guess only
-  // if it wasn't injected — that will simply fail to connect rather than hit the
-  // wrong session's server.
-  const ENDPOINT = (typeof window !== "undefined" && window.__ANNOT_ENDPOINT) || "http://localhost:8799";
-  // Per-session secret the injecting Claude session sets via get_endpoint. Sent on
-  // every request so other pages/processes can't talk to this session's server.
+  // Only run on local dev origins. addInitScript fires on EVERY page in the browser
+  // context, so this keeps the overlay (and the session token) from activating on any
+  // third-party site that happens to be opened in the same browser.
+  const H = (typeof location !== "undefined" && location.hostname) || "";
+  if (!(H === "localhost" || H === "127.0.0.1" || H === "::1" || H === "[::1]" || H.endsWith(".localhost"))) return "skipped: non-local origin";
+  // The injecting session sets these to ITS OWN channel server (each session uses a
+  // different ephemeral port + secret token). No fallback: if they're missing the
+  // overlay still draws but Send reports it isn't configured, rather than guessing a
+  // port and possibly hitting another session.
+  const ENDPOINT = (typeof window !== "undefined" && window.__ANNOT_ENDPOINT) || null;
   const TOKEN = (typeof window !== "undefined" && window.__ANNOT_TOKEN) || "";
-  const Q = "?t=" + encodeURIComponent(TOKEN);
+  const Q = "?t=" + encodeURIComponent(TOKEN); // /events only — EventSource can't set headers
   const LS = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
   if (LS.get("__annot_off") === "1") return "disabled";
   // Re-injection: if the API is live AND its DOM is still attached, just re-arm.
@@ -51,6 +55,7 @@
   const COLORS = ["#ff2d55", "#0a84ff", "#34c759", "#ffd60a", "#111111"];
   const SIZES = { S: 2.5, M: 4, L: 7 };
   const state = { tool: "pen", color: COLORS[0], size: SIZES.M, drawing: false, start: null, node: null, pts: [], items: [], shift: false, editing: null };
+  let sending = false; // true between Send and Claude's arm(); blocks re-send and new strokes
 
   // --- drawing layer --------------------------------------------------------
   const svg = document.createElementNS(NS, "svg");
@@ -136,6 +141,7 @@
   function smooth(pts) { if (pts.length < 2) return `M${pts[0].x},${pts[0].y}`; let d = `M${pts[0].x},${pts[0].y}`; for (let i = 1; i < pts.length - 1; i++) { const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2; d += ` Q${pts[i].x},${pts[i].y} ${mx},${my}`; } const l = pts[pts.length - 1]; return d + ` L${l.x},${l.y}`; }
 
   function down(e) {
+    if (sending) return; // don't start strokes that arm() is about to clear
     if (e.target.closest("[data-annot-ui]")) return;
     if (state.editing) { state.editing.blur(); return; } // a click outside an open note confirms it, no new shape
     e.preventDefault(); state.shift = e.shiftKey;
@@ -180,13 +186,16 @@
 
   // --- dragging the toolbar -------------------------------------------------
   let drag = null;
-  grip.addEventListener("pointerdown", e => { const r = bar.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; bar.style.transition = "none"; grip.style.cursor = "grabbing"; e.preventDefault(); });
-  window.addEventListener("pointermove", e => { if (!drag) return; const x = Math.max(6, Math.min(window.innerWidth - bar.offsetWidth - 6, e.clientX - drag.dx)); const y = Math.max(6, Math.min(window.innerHeight - bar.offsetHeight - 6, e.clientY - drag.dy)); bar.style.left = x + "px"; bar.style.top = y + "px"; bar.style.bottom = "auto"; bar.style.transform = "none"; });
-  window.addEventListener("pointerup", () => { drag = null; grip.style.cursor = "grab"; });
+  function gripDown(e) { const r = bar.getBoundingClientRect(); drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; bar.style.transition = "none"; grip.style.cursor = "grabbing"; e.preventDefault(); }
+  function dragMove(e) { if (!drag) return; const x = Math.max(6, Math.min(window.innerWidth - bar.offsetWidth - 6, e.clientX - drag.dx)); const y = Math.max(6, Math.min(window.innerHeight - bar.offsetHeight - 6, e.clientY - drag.dy)); bar.style.left = x + "px"; bar.style.top = y + "px"; bar.style.bottom = "auto"; bar.style.transform = "none"; }
+  function dragUp() { drag = null; grip.style.cursor = "grab"; }
+  grip.addEventListener("pointerdown", gripDown);
+  window.addEventListener("pointermove", dragMove);
+  window.addEventListener("pointerup", dragUp);
 
   // --- input wiring ---------------------------------------------------------
   svg.addEventListener("pointerdown", down); window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
-  function onKey(e) { const t = e.target; if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable)) return; if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z")) { e.preventDefault(); undo(); return; } const map = { a: "arrow", r: "box", p: "pen", t: "text" }; const tool = map[e.key.toLowerCase()]; if (tool) setTool(tool); }
+  function onKey(e) { if (bar.style.display === "none") return; /* minimized: don't hijack the app's keys (e.g. Cmd+Z) */ const t = e.target; if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable)) return; if ((e.metaKey || e.ctrlKey) && (e.key === "z" || e.key === "Z")) { e.preventDefault(); undo(); return; } const map = { a: "arrow", r: "box", p: "pen", t: "text" }; const tool = map[e.key.toLowerCase()]; if (tool) setTool(tool); }
   window.addEventListener("keydown", onKey);
 
   document.body.appendChild(svg); document.body.appendChild(bar); document.body.appendChild(launcher); document.body.appendChild(toast);
@@ -194,6 +203,7 @@
   // --- reply stream (Claude -> toast) ---------------------------------------
   let es = null;
   function connectEvents() {
+    if (!ENDPOINT || !TOKEN) return; // not configured for this page; nothing to listen to
     try {
       es = new EventSource(ENDPOINT + "/events" + Q);
       es.onmessage = ev => { try { const m = JSON.parse(ev.data); if (m && m.type === "toast" && m.text) showToast(m.text, 6000); } catch (e) {} };
@@ -216,16 +226,16 @@
   }
   // arm(): clear the canvas and make the toolbar visible again, in place. Does NOT
   // collapse, move, or change minimized/expanded state — the bar just stays put.
-  let sending = false;
   function arm() { if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } clearAll(); sending = false; setBar(true); setTool(state.tool); renderColors(); renderSizes(); }
   // send(): POST the drawings to the channel; Claude captures + incorporates. The
   // toolbar deliberately stays put — no collapse — so it never flickers away on Send.
   async function send() {
     if (sending) return; // already in flight; ignore double-clicks until arm() resets
+    if (!ENDPOINT || !TOKEN) { showToast("Annotate isn't set up for this page. Re-run /annotate.", 9000); return; }
     if (state.editing) state.editing.blur(); // commit any open note first
     sending = true;
     try {
-      const r = await fetch(ENDPOINT + "/send" + Q, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: location.href, notes: String(state.items.length) }) });
+      const r = await fetch(ENDPOINT + "/send", { method: "POST", headers: { "Content-Type": "application/json", "X-Annot-Token": TOKEN }, body: JSON.stringify({ url: location.href, notes: String(state.items.length) }) });
       if (!r.ok) throw new Error("status " + r.status);
       showToast("Sent to Claude…");
     } catch (e) {
@@ -234,7 +244,7 @@
     }
   }
   // disable(): fully leave review mode — remove the overlay and stop it returning on reload.
-  function disable() { LS.set("__annot_off", "1"); if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } try { if (es) es.close(); } catch (e) {} window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("keydown", onKey); rm(svg); rm(bar); rm(launcher); rm(toast); delete window.__annot; }
+  function disable() { LS.set("__annot_off", "1"); if (state.editing) { const ed = state.editing; state.editing = null; rm(ed); } try { if (es) es.close(); } catch (e) {} window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("keydown", onKey); window.removeEventListener("pointermove", dragMove); window.removeEventListener("pointerup", dragUp); rm(svg); rm(bar); rm(launcher); rm(toast); delete window.__annot; }
 
   window.__annot = {
     arm, send, setBar, disable, expand, minimize, clear: clearAll, toast: showToast,

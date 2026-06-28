@@ -26,6 +26,8 @@ const FIXED_PORT = process.env.ANNOTATE_PORT ? Number(process.env.ANNOTATE_PORT)
 // local process from posting into this session even if it finds the port.
 const TOKEN = crypto.randomBytes(18).toString("hex");
 let endpoint = null; // set once the HTTP server is listening
+let markReady;
+const ready = new Promise((r) => { markReady = r; }); // resolves when endpoint is set
 
 // --- outbound (Claude -> overlay): SSE listeners for toasts ----------------
 const listeners = new Set();
@@ -35,7 +37,7 @@ function broadcast(obj) {
 }
 
 const mcp = new Server(
-  { name: "annotate", version: "0.2.4" },
+  { name: "annotate", version: "0.2.5" },
   {
     capabilities: { experimental: { "claude/channel": {} }, tools: {} },
     instructions: [
@@ -75,6 +77,7 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (req.params.name === "get_endpoint") {
+    await ready; // don't hand back a null url if asked before the server is listening
     return { content: [{ type: "text", text: JSON.stringify({ url: endpoint, token: TOKEN }) }] };
   }
   if (req.params.name === "reply") {
@@ -91,7 +94,7 @@ await mcp.connect(new StdioServerTransport());
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, X-Annot-Token",
 };
 
 const server = http.createServer((req, res) => {
@@ -99,8 +102,10 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "OPTIONS") { res.writeHead(204, CORS); return res.end(); }
 
-  // Everything except the health check requires this session's token.
-  if (url.pathname !== "/health" && url.searchParams.get("t") !== TOKEN) {
+  // Every request must carry this session's token: header (preferred — keeps it out
+  // of URLs and logs) or ?t= query (EventSource can't set headers).
+  const token = req.headers["x-annot-token"] || url.searchParams.get("t");
+  if (token !== TOKEN) {
     res.writeHead(403, { ...CORS, "Content-Type": "application/json" });
     return res.end(JSON.stringify({ ok: false, error: "forbidden" }));
   }
@@ -114,12 +119,6 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // overlay's health ping (lets it tell "channel not running" from a real error)
-  if (req.method === "GET" && url.pathname === "/health") {
-    res.writeHead(200, { ...CORS, "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ ok: true }));
-  }
-
   // overlay Send -> push a channel event into the session
   if (req.method === "POST" && url.pathname === "/send") {
     let body = "";
@@ -127,19 +126,21 @@ const server = http.createServer((req, res) => {
     req.on("end", async () => {
       let info = {};
       try { info = JSON.parse(body || "{}"); } catch (e) {}
-      const pageUrl = String(info.url || "");
-      const marks = String(info.notes ?? "");
+      // Clamp + sanitize: these get interpolated into the text Claude reads.
+      const pageUrl = String(info.url || "").replace(/[\r\n]+/g, " ").slice(0, 300);
+      const marks = String(info.notes ?? "").replace(/\D/g, "").slice(0, 6);
+      let ok = true;
       try {
         await mcp.notification({
           method: "notifications/claude/channel",
           params: {
-            content: `User submitted UI annotations (${marks} mark${marks === "1" ? "" : "s"})${pageUrl ? " on " + pageUrl : ""}. Capture and incorporate them now.`,
+            content: `User submitted UI annotations (${marks || "0"} mark${marks === "1" ? "" : "s"})${pageUrl ? " on " + pageUrl : ""}. Capture and incorporate them now.`,
             meta: { url: pageUrl, marks },
           },
         });
-      } catch (e) { process.stderr.write(`annotate: notify failed: ${e}\n`); }
-      res.writeHead(200, { ...CORS, "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true }));
+      } catch (e) { ok = false; process.stderr.write(`annotate: notify failed: ${e}\n`); }
+      res.writeHead(ok ? 200 : 500, { ...CORS, "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok }));
     });
     return;
   }
@@ -160,5 +161,6 @@ server.on("error", (e) => {
 
 server.listen(FIXED_PORT, "127.0.0.1", () => {
   endpoint = `http://localhost:${server.address().port}`;
+  markReady();
   process.stderr.write(`annotate channel: ${endpoint}\n`);
 });
