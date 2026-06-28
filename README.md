@@ -2,7 +2,7 @@
 
 Draw your feedback right on top of your running app and send it straight to Claude.
 
-<img width="1728" height="1084" alt="screenshot 2026-06-27 um 10 16 57" src="https://github.com/user-attachments/assets/a1ee4ce6-708e-490f-a207-4a641360599f" />
+<img width="1000" height="545" alt="annotate" src="https://github.com/user-attachments/assets/4baa8df2-e326-4575-9ddd-8ab25e5f36ba" />
 
 ## Why
 
