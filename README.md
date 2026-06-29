@@ -8,13 +8,19 @@ Draw your feedback onto your frontend and send it straight to Claude.
 
 
 ## Install
+You need the [Playwright MCP](https://playwright.dev/docs/getting-started-mcp) connected:
+```bash
+claude mcp add playwright npx @playwright/mcp@latest
+```
+
+Then install the plugin:
 
 ```bash
 claude plugin marketplace add tomreinert/claude-annotate
 claude plugin install annotate@tom-tools --scope user
 ```
 
-You also need the [Playwright MCP](https://playwright.dev/docs/getting-started-mcp) connected.
+
 
 ## Use
 
