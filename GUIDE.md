@@ -16,14 +16,14 @@ writing "the button in the top right, no the other one, move it down a bit".
 
 - Draw arrows, boxes, freehand strokes, and sticky notes anywhere on your page.
 - Send the marked-up view to Claude with one click. It picks it up and gets to work.
-- Keep iterating: draw, send, watch the change, draw again. The toolbar stays put.
+- Keep iterating: draw, send, watch the change, draw again.
 - Tuck it away into a small pill when you want it out of the way, and pop it back when you need it.
 
 ## Toolbar
 
 Arrow (A), Rectangle (R, Shift = square), Pen (P), Text (T, sticky note). Plus
 colors, stroke size S/M/L, Undo (Cmd/Ctrl+Z), Clear, the green Send button, and ✕
-to tuck it into the launcher pill (✏) you can reopen anytime.
+to tuck it into the launcher pill.
 
 ## FAQ
 
