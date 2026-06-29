@@ -2,7 +2,7 @@
 
 Draw your feedback onto your frontend and send it straight to Claude.
 
-🧪 Work in progress, I'm still testing this as I build.
+🧪 Work in progress, I'm still testing this as I build. Feedback welcome!
 
 <img width="1000" height="545" alt="annotate" src="https://github.com/user-attachments/assets/4baa8df2-e326-4575-9ddd-8ab25e5f36ba" />
 
