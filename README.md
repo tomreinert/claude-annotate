@@ -38,3 +38,11 @@ Keep drawing and sending as often as you like. Say "stop reviewing" when you are
 
 See the [full guide](GUIDE.md) for the toolbar shortcuts and FAQ (including why the
 `--dangerously-load-development-channels` flag is safe and how to skip it).
+
+
+## Notes
+
+This works quite well in my local setup with an app running on localhost:3000.
+Many moving parts though, so I'm curious how it works in different enviroments. 
+
+Looking forward to feedback and issues!
