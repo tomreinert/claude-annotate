@@ -10,3 +10,4 @@ scratchpad/
 # package-lock.json IS committed so installs are deterministic (npm ci).
 node_modules/
 annotate-plugin/node_modules/
+.claude
