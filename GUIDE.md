@@ -55,14 +55,14 @@ Two ways the flag goes away:
 
 - **Inside a Team or Enterprise org**, an Owner can allow this plugin in managed
   settings, after which everyone in the org launches with plain `--channels` (no dev
-  flag). Add it to `allowedChannelPlugins` (and make sure members have the `tom-tools`
+  flag). Add it to `allowedChannelPlugins` (and make sure members have the `claude-annotate`
   marketplace added):
 
   ```json
   {
     "channelsEnabled": true,
     "allowedChannelPlugins": [
-      { "marketplace": "tom-tools", "plugin": "annotate" }
+      { "marketplace": "claude-annotate", "plugin": "annotate" }
     ]
   }
   ```
@@ -80,7 +80,7 @@ always go to the session you are drawing in.
 ### The toolbar shows but Send says it can't reach the channel.
 
 The session was started without the channel flag. Relaunch with
-`claude --dangerously-load-development-channels plugin:annotate@tom-tools`.
+`claude --dangerously-load-development-channels plugin:annotate@claude-annotate`.
 
 ### Why does it need Playwright?
 

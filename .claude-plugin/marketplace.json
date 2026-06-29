@@ -1,7 +1,7 @@
 {
-  "name": "tom-tools",
-  "owner": { "name": "Tom Reinert" },
-  "description": "Tom's local Claude Code tools.",
+  "name": "claude-annotate",
+  "owner": { "name": "Tom Reinert", "url": "https://github.com/tomreinert" },
+  "description": "Live UI annotation tooling for Claude Code.",
   "plugins": [
     {
       "name": "annotate",

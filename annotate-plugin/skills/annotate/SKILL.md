@@ -18,7 +18,7 @@ The channel only delivers if the session was launched with the channel flag.
 Custom channels aren't on Anthropic's allowlist yet, so it's:
 
 ```
-claude --dangerously-load-development-channels plugin:annotate@tom-tools
+claude --dangerously-load-development-channels plugin:annotate@claude-annotate
 ```
 
 If `window.__annot` injects fine but Send shows "Can't reach the annotate

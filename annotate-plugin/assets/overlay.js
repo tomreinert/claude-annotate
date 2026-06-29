@@ -240,7 +240,7 @@
       showToast("Sent to Claude…");
     } catch (e) {
       sending = false;
-      showToast("Can't reach the annotate channel. Start Claude with:\n--dangerously-load-development-channels plugin:annotate@tom-tools", 9000);
+      showToast("Can't reach the annotate channel. Start Claude with:\n--dangerously-load-development-channels plugin:annotate@claude-annotate", 9000);
     }
   }
   // disable(): fully leave review mode — remove the overlay and stop it returning on reload.

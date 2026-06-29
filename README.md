@@ -17,7 +17,7 @@ Then install the plugin:
 
 ```bash
 claude plugin marketplace add tomreinert/claude-annotate
-claude plugin install annotate@tom-tools --scope user
+claude plugin install annotate@claude-annotate --scope user
 ```
 
 
@@ -27,7 +27,7 @@ claude plugin install annotate@tom-tools --scope user
 Launch Claude Code with the channel turned on:
 
 ```bash
-claude --dangerously-load-development-channels plugin:annotate@tom-tools
+claude --dangerously-load-development-channels plugin:annotate@claude-annotate
 ```
 
 1. Type `/annotate`. Claude launches a Playwright browser with the annotation toolbar.

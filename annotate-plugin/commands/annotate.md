@@ -22,4 +22,4 @@ Send.
 
 If the toolbar loads but Send reports it can't reach the channel, the session was
 launched without the channel flag — tell the user to relaunch with
-`claude --dangerously-load-development-channels plugin:annotate@tom-tools`.
+`claude --dangerously-load-development-channels plugin:annotate@claude-annotate`.
