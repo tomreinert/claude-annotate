@@ -1,13 +1,10 @@
-# local dev / test fixtures — not part of the distributable plugin
 test-app/
 .playwright-mcp/
 .annotations/
 scratchpad/
 *.png
 *.log
-
-# channel server deps (installed on first launch).
-# package-lock.json IS committed so installs are deterministic (npm ci).
 node_modules/
 annotate-plugin/node_modules/
 .claude
+CLAUDE.md
